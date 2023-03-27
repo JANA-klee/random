@@ -1,15 +1,10 @@
--- Insert non-domain related data into #ProfileData
--- Domain related data will be inserted into #ProfileData_DomainsOnly in the WHILE loop
 INSERT INTO #ProfileData (ColumnNameId, TableCatalog, TableSchema, TableName, ColumnName)
 SELECT ORDINAL_POSITION AS 'ColumnNameId', TABLE_CATALOG AS 'TableCatalog', TABLE_SCHEMA AS 'TableSchema', TABLE_NAME AS 'TableName', COLUMN_NAME AS 'ColumnName' 
 from INFORMATION_SCHEMA.COLUMNS
 where TABLE_CATALOG = @Table_Catalog AND TABLE_SCHEMA = @Table_Schema AND TABLE_NAME = @Table_Name; 
 
--- Get a count of total rows to process (just look at first column, i.e., column 0)
 SELECT @RowCnt = COUNT(0) FROM #ProfileData;
 
--- Loop through columns in the dataset to determine their domains, the count of the domains, and the % total of the domain item relative to the rest in the column
--- @ColumnNameId start at 1 and loops until it reaches the value of @RowCnt
 WHILE @ColumnNameId <= @RowCnt
 BEGIN
 
@@ -34,26 +29,14 @@ BEGIN
 	-- @IsDate must be declared within this query's "subspace", it also must be declared as an output based on sp_executesql syntax
 		EXEC sp_executesql @SQL, N'@IsDate BIT OUTPUT', @IsDate OUTPUT
 
-   -- Obtaining a count of the number of unique domains in the column
-   -- The string is executed with @DistinctCount as an output
-   -- Dynamic SQL must be used in the cases where we are using a function to set a variable (?)
    SET @SQL =
    'SELECT @DistinctCount = COUNT(DISTINCT [' + @ColumnName + '] ) FROM [' + @Table_Catalog + '].[' + @Table_Schema + '].[' + @Table_Name + ']'
    
-   -- @DistinctCount must be declared within this query's "subspace", it also must be declared as an output based on sp_executesql syntax
    EXEC sp_executesql @SQL, N'@DistinctCount int OUTPUT', @DistinctCount OUTPUT
  
-   -- A print of the variables each loop so check if it is working
-
-
-   -- If the number of unique domains is < 50, it will profile all the domains in the column
-   -- Used to avoid situations where a lot of the domains are unique like Asset ID 
-   -- In those cases, it would profile as many domains as there are assets, which is not useful 
-      -- Main IF loop is based on the @IsDate condition which checks that everything in the column a date. 
    IF (@IsDate = 1)
 	   BEGIN 
 	  
-	  -- If condition is satisfied, print out all the years from the date entries
 	   SET @SQL = 
 	   'INSERT INTO #ProfileData_DomainsOnly (ColumnNameId, DomainName, [Count], PercentTotal, NumberOfNulls, NumberOfEntries, UniquenessIndicator)
 	   SELECT @ColumnNameId, 
